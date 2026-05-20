@@ -1,0 +1,181 @@
+# ––– Завдання 1. Single Responsibility Principle (SRP) –––
+
+# 1.1 Розділення відповідальностей для звітів
+class CallReportGenerator:
+    def generate_report(self, calls_data):
+        return f"Звіт згенеровано на основі: {calls_data}"
+
+class ReportSaver:
+    def save_to_file(self, report, filename):
+        # У реальному коді тут був би запис у файл
+        print(f"[{filename}] Збережено: {report}")
+
+
+# 1.2 Розділення відповідальностей для абонента
+class Subscriber:
+    def __init__(self, subscriber_id, name, phone):
+        self.subscriber_id = subscriber_id
+        self.name = name
+        self.phone = phone
+
+class SMSSender:
+    def send(self, phone, message):
+        print(f"SMS на {phone}: {message}")
+
+class BalanceCalculator:
+    def calculate_balance(self, subscriber_id):
+        # Імітація запиту до бази для розрахунку
+        return 100.0
+
+
+# ––– Завдання 2. Open/Closed Principle (OCP) –––
+
+class Tariff:
+    def calculate_cost(self, usage):
+        pass
+
+# 2.1 Базовий тариф
+class BasicTariff(Tariff):
+    def calculate_cost(self, usage):
+        return usage * 1.0
+
+# 2.2 Розширення системи новими тарифами без зміни існуючого коду
+class VoiceTariff(Tariff):
+    def calculate_cost(self, usage):
+        return usage * 1.5
+
+class DataTariff(Tariff):
+    def calculate_cost(self, usage):
+        return usage * 0.05
+
+class RoamingTariff(Tariff):
+    def calculate_cost(self, usage):
+        return usage * 5.0
+
+class BillingSystem:
+    def calculate_total(self, tariff: Tariff, usage):
+        return tariff.calculate_cost(usage)
+
+
+# ––– Завдання 3. Liskov Substitution Principle (LSP) –––
+
+class Connection:
+    pass
+
+# Розділяємо з'єднання на ті, що в реальному часі, і ті, що із затримкою
+class RealTimeConnection(Connection):
+    def connect(self):
+        pass
+
+class DelayedConnection(Connection):
+    def schedule_transmission(self):
+        pass
+
+# 3.1 Взаємозамінні з'єднання
+class LTEConnection(RealTimeConnection):
+    def connect(self):
+        print("LTE підключено")
+
+class WiFiConnection(RealTimeConnection):
+    def connect(self):
+        print("WiFi підключено")
+
+# 3.2 Виправлена ієрархія для супутника (не змушуємо його працювати як WiFi)
+class SatelliteConnection(DelayedConnection):
+    def schedule_transmission(self):
+        print("Передачу даних через супутник заплановано")
+
+
+# ––– Завдання 4. Interface Segregation Principle (ISP) –––
+
+# 4.1 Розділення великого інтерфейсу на спеціалізовані
+class ICallMaker:
+    def make_call(self):
+        pass
+
+class ISMSSender:
+    def send_sms(self):
+        pass
+
+class INetworkConnector:
+    def connect_to_network(self):
+        pass
+
+# Смартфон використовує всі інтерфейси
+class Smartphone(ICallMaker, ISMSSender, INetworkConnector):
+    def make_call(self):
+        print("Смартфон робить дзвінок")
+
+    def send_sms(self):
+        print("Смартфон відправляє SMS")
+
+    def connect_to_network(self):
+        print("Смартфон підключився до мережі")
+
+# 4.2 IoT-пристрій реалізує лише те, що йому справді потрібно
+class IoTDevice(INetworkConnector):
+    def connect_to_network(self):
+        print("IoT-датчик підключився для передачі даних")
+
+
+# ––– Завдання 5. Dependency Inversion Principle (DIP) –––
+
+# 5.1 та 5.2 Абстракція логера та її різні реалізації
+class Logger:
+    def log(self, message):
+        pass
+
+class FileLogger(Logger):
+    def log(self, message):
+        print(f"Запис у файл: {message}")
+
+class ServerLogger(Logger):
+    def log(self, message):
+        print(f"Відправка на сервер: {message}")
+
+class ConsoleLogger(Logger):
+    def log(self, message):
+        print(f"Вивід у консоль: {message}")
+
+# Моніторинг залежить від абстракції (Logger), а не від конкретного класу
+class NetworkMonitor:
+    def __init__(self, logger: Logger):
+        self.logger = logger
+
+    def check(self):
+        # Якась логіка перевірки...
+        self.logger.log("Перевірка мережі успішна. Статус: ОК")
+
+
+# ––– ДЕМОНСТРАЦІЯ РОБОТИ КОДУ –––
+if __name__ == "__main__":
+    print("--- Тест SRP ---")
+    sub = Subscriber(1, "Олександр", "+380501234567")
+    sms = SMSSender()
+    sms.send(sub.phone, "Ваш тариф оновлено")
+    
+    print("\n--- Тест OCP ---")
+    billing = BillingSystem()
+    roaming = RoamingTariff()
+    print(f"Вартість у роумінгу за 10 хв: {billing.calculate_total(roaming, 10)} грн")
+
+    print("\n--- Тест LSP ---")
+    connections = [LTEConnection(), WiFiConnection()]
+    for conn in connections:
+        conn.connect() # Працює однаково для обох підкласів
+    sat = SatelliteConnection()
+    sat.schedule_transmission()
+
+    print("\n--- Тест ISP ---")
+    my_phone = Smartphone()
+    my_sensor = IoTDevice()
+    my_phone.make_call()
+    my_sensor.connect_to_network()
+
+    print("\n--- Тест DIP ---")
+    # Можемо легко змінити тип логера, не змінюючи код NetworkMonitor
+    monitor_console = NetworkMonitor(ConsoleLogger())
+    monitor_console.check()
+    
+    monitor_server = NetworkMonitor(ServerLogger())
+    monitor_server.check()
