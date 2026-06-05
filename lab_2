@@ -1,0 +1,139 @@
+import asyncio
+import random
+import time
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# ––– КЛАСИ ВУЗЛІВ ТА ПАКЕТІВ –––
+
+class Node:
+    def __init__(self, name):
+        self.name = name
+        self.connections = []
+
+    # Встановлення двостороннього з'єднання
+    def connect(self, node):
+        if node not in self.connections:
+            self.connections.append(node)
+            node.connections.append(self)
+
+    # Асинхронна відправка з імітацією затримки та випадковою втратою
+    async def send(self, packet, network):
+        await asyncio.sleep(random.uniform(0.05, 0.3))
+        if random.random() < network.loss_rate:
+            network.packets_lost += 1
+            return
+        await self.forward(packet, network)
+
+    # Пересилання пакета сусіднім вузлам
+    async def forward(self, packet, network):
+        if self == packet.dest:
+            return
+        if self in packet.visited:
+            return
+        packet.visited.append(self)
+        for node in self.connections:
+            if node not in packet.visited:
+                await node.send(packet, network)
+
+class Router(Node):
+    pass
+
+class Packet:
+    def __init__(self, src, dest, size, protocol):
+        self.src = src
+        self.dest = dest
+        self.size = size
+        self.protocol = protocol
+        self.visited = []
+
+# ––– ПРОТОКОЛИ –––
+
+class TCPProtocol:
+    name = "TCP"
+    @staticmethod
+    async def transmit(src, dest, network):
+        packet = Packet(src, dest, random.randint(200, 500), "TCP")
+        await src.send(packet, network)
+
+class UDPProtocol:
+    name = "UDP"
+    @staticmethod
+    async def transmit(src, dest, network):
+        packet = Packet(src, dest, random.randint(50, 200), "UDP")
+        await src.send(packet, network)
+
+# ––– МЕРЕЖА ТА СИМУЛЯЦІЯ –––
+
+class Network:
+    def __init__(self, name):
+        self.name = name
+        self.nodes = []
+        # Симуляція втрати 10-15%
+        self.loss_rate = random.uniform(0.10, 0.15)
+        self.packets_sent = 0
+        self.packets_lost = 0
+        self.total_time = 0
+
+    # Запуск випадкової передачі пакетів
+    async def simulate(self, protocol, packets=5):
+        for _ in range(packets):
+            src, dest = random.sample(self.nodes, 2)
+            start = time.time()
+            self.packets_sent += 1
+            await protocol.transmit(src, dest, self)
+            self.total_time += time.time() - start
+
+    # Розрахунок та вивід метрик
+    def analyze(self):
+        avg_time = self.total_time / self.packets_sent if self.packets_sent else 0
+        loss = (self.packets_lost / self.packets_sent) * 100 if self.packets_sent else 0
+        bandwidth = (self.packets_sent - self.packets_lost) / self.total_time if self.total_time else 0
+        print(f"[{self.name}] Середній час передачі: {avg_time:.4f} с")
+        print(f"[{self.name}] Втрати пакетів: {loss:.2f}%")
+        print(f"[{self.name}] Пропускна здатність: {bandwidth:.2f} пак/с\n")
+
+    # Візуалізація топології
+    def visualize(self, color):
+        G = nx.Graph()
+        for node in self.nodes:
+            for conn in node.connections:
+                G.add_edge(node.name, conn.name)
+        
+        plt.figure(figsize=(5, 4))
+        pos = nx.spring_layout(G)
+        nx.draw(G, pos, with_labels=True, node_color=color, node_size=2500, font_size=10, font_weight="bold")
+        plt.title(f"Топологія: {self.name}")
+        plt.show()
+
+# ––– ГОЛОВНИЙ ЦИКЛ –––
+async def main():
+    # 1. Побудова Зіркової топології
+    star_net = Network("Зіркова")
+    router = Router("Router")
+    star_pcs = [Node(f"PC{i}") for i in range(1, 6)]
+    star_net.nodes = [router] + star_pcs
+    for pc in star_pcs:
+        router.connect(pc)
+
+    print("--- Симуляція Зіркової топології (TCP) ---")
+    await star_net.simulate(TCPProtocol, packets=15)
+    star_net.analyze()
+    
+    # 2. Побудова Кільцевої топології
+    ring_net = Network("Кільцева")
+    ring_pcs = [Node(f"Node{i}") for i in range(1, 6)]
+    ring_net.nodes = ring_pcs
+    for i in range(len(ring_pcs)):
+        ring_pcs[i].connect(ring_pcs[(i + 1) % len(ring_pcs)])
+
+    print("--- Симуляція Кільцевої топології (UDP) ---")
+    await ring_net.simulate(UDPProtocol, packets=15)
+    ring_net.analyze()
+
+    # Вивід графіків на екран
+    star_net.visualize("lightblue")
+    ring_net.visualize("lightgreen")
+
+if __name__ == "__main__":
+    asyncio.run(main())
